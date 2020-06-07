@@ -21,31 +21,36 @@ class OrderBookProcessorBitmex:
         counter = 1
         full_data = []
         current_length = 1000
-        try :
+        initial_start_date = start_date
+        try:
             while current_length > 3:
+                counter += 1
                 if counter % 100 == 0:
                     file_name = self.file_base_name_trade + str(start_date).replace(":", "_").replace(".", "_")
                     full_data = self.store_data(self, file_name, full_data)
+                    initial_start_date = start_date
 
-                self.client = bitmex.bitmex(test=self.test)
                 added_data = []
                 try:
                     added_data = \
-                        self.client.Trade.Trade_get(symbol=symbol, startTime=start_date, endTime=end_date).result()[0]
+                        self.client.Trade.Trade_get(symbol=symbol, startTime=start_date, endTime=end_date,
+                                                    count=1000).result()[0]
                 except:
                     self.client = bitmex.bitmex(test=self.test)
-                    logging.warning("get_trading_book: the data could not be gotten for start_date %s and end date %s" % (
-                    str(start_date), str(end_date)))
+                    logging.warning(
+                        "get_trading_book: the data could not be gotten for start_date %s and end date %s" % (
+                            str(start_date), str(end_date)))
                     try:
                         time.sleep(1)
                         added_data = \
-                            self.client.Trade.Trade_get(symbol=symbol, startTime=start_date, endTime=end_date).result()[0]
+                            self.client.Trade.Trade_get(symbol=symbol, startTime=start_date, endTime=end_date,
+                                                        count=1000).result()[0]
                     except:
                         logging.warning(
-                            "get_trading_book: the data could not be gotten for start_date %s and end date %s" % (
+                            "get_trading_book: second time the data could not be gotten for start_date %s and end date %s" % (
                                 str(start_date), str(end_date)))
 
-                full_data.append(added_data)
+                full_data.extend(added_data)
                 current_length = len(added_data)
                 start_date = added_data[-1]["timestamp"]
         except KeyboardInterrupt:
@@ -53,8 +58,9 @@ class OrderBookProcessorBitmex:
             file_name = self.file_base_name_trade + str(start_date).replace(":", "_").replace(".", "_")
             full_data = self.store_data(self, file_name, full_data)
         finally:
+            file_name = self.file_base_name_trade + str(start_date).replace(":", "_").replace(".", "_")
+            full_data = self.store_data(self, file_name, full_data)
             logging.info("get_trading_book: Process ended")
-
 
     def process_data(self, symbol="XBTUSD", sleep=1, counter=math.inf, save_location=None):
         '''

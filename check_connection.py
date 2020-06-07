@@ -20,7 +20,7 @@ def check_connection():
     inner_counter = 50
     count = 0
     connection_status = False
-    while ~connection_status and count < inner_counter:
+    while not(connection_status) and count < inner_counter:
         connection_status = is_connected()
         if connection_status is False:
             time.sleep(1)

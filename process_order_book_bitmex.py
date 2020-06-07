@@ -15,6 +15,46 @@ class OrderBookProcessorBitmex:
         self.test = test
         self.client = bitmex.bitmex(test=self.test)
         self.file_base_name = os.path.dirname(os.path.abspath(__file__)) + "\data\data_orderbook_"
+        self.file_base_name_trade = os.path.dirname(os.path.abspath(__file__)) + "\data\data_trades_"
+
+    def get_trading_book(self, start_date, end_date, symbol="XBTUSD"):
+        counter = 1
+        full_data = []
+        current_length = 1000
+        try :
+            while current_length > 3:
+                if counter % 100 == 0:
+                    file_name = self.file_base_name_trade + str(start_date).replace(":", "_").replace(".", "_")
+                    full_data = self.store_data(self, file_name, full_data)
+
+                self.client = bitmex.bitmex(test=self.test)
+                added_data = []
+                try:
+                    added_data = \
+                        self.client.Trade.Trade_get(symbol=symbol, startTime=start_date, endTime=end_date).result()[0]
+                except:
+                    self.client = bitmex.bitmex(test=self.test)
+                    logging.warning("get_trading_book: the data could not be gotten for start_date %s and end date %s" % (
+                    str(start_date), str(end_date)))
+                    try:
+                        time.sleep(1)
+                        added_data = \
+                            self.client.Trade.Trade_get(symbol=symbol, startTime=start_date, endTime=end_date).result()[0]
+                    except:
+                        logging.warning(
+                            "get_trading_book: the data could not be gotten for start_date %s and end date %s" % (
+                                str(start_date), str(end_date)))
+
+                full_data.append(added_data)
+                current_length = len(added_data)
+                start_date = added_data[-1]["timestamp"]
+        except KeyboardInterrupt:
+            logging.warning("get_trading_book: Process interrupted by user")
+            file_name = self.file_base_name_trade + str(start_date).replace(":", "_").replace(".", "_")
+            full_data = self.store_data(self, file_name, full_data)
+        finally:
+            logging.info("get_trading_book: Process ended")
+
 
     def process_data(self, symbol="XBTUSD", sleep=1, counter=math.inf, save_location=None):
         '''
@@ -27,7 +67,7 @@ class OrderBookProcessorBitmex:
         count = 1
 
         stored_data = []
-        start_time = str(dt.datetime.utcnow()).replace(":", "_")
+        start_time = str(dt.datetime.utcnow()).replace(":", "_").replace(".", "_")
         file_name = self.file_base_name + start_time
 
         try:
@@ -67,29 +107,28 @@ class OrderBookProcessorBitmex:
                 if count % 10000 == 0:
                     logging.info("Added 10000 new data points from %s " % (start_time))
                     file_name = self.file_base_name + start_time
-                    self.store_data(self, file_name, stored_data)
+                    stored_data = self.store_data(self, file_name, stored_data)
                     # A new start time is being given here
-                    start_time = str(dt.datetime.utcnow()).replace(":", "_")
+                    start_time = str(dt.datetime.utcnow()).replace(":", "_").replace(".", "_")
 
                 time.sleep(max(0, sleep - time.time() + t0))
             logging.info("Added new data points from %s " % (start_time))
             file_name = self.file_base_name + start_time
-            self.store_data(self, file_name, stored_data)
+            stored_data = self.store_data(self, file_name, stored_data)
         except KeyboardInterrupt as e:
             logging.info("Recorder: Caught keyboard interrupt. \n%s" % e)
             logging.info("Added new data points from %s " % (start_time))
             file_name = self.file_base_name + start_time
-            self.store_data(self, file_name, stored_data)
+            stored_data = self.store_data(self, file_name, stored_data)
             return
 
     @staticmethod
-    def store_data(self, file_name, stored_data):
+    def store_data(self, file_name, stored_data: list):
         stored_data = pd.DataFrame(stored_data)
         f = open(file_name, 'wb')
         cPickle.dump(stored_data, f, protocol=cPickle.HIGHEST_PROTOCOL)
         f.close()
-        stored_data = []
-        return
+        return []
 
     def process_one_data(self, date: dt.datetime, symbol: str, order_book_unprocessed: tuple):
         try:
